@@ -1,0 +1,146 @@
+@page "/orders/edit/{OidParam}"
+@using CustomerOrders.Models
+@using DevExpress.Xpo
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Order</PageTitle>
+
+<h1>Edit Order</h1>
+
+@if (order == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-6">
+            <EditForm Model="@orderModel" OnValidSubmit="HandleValidSubmit">
+                <div class="mb-3">
+                    <label for="orderNumber" class="form-label">Order Number</label>
+                    <InputText id="orderNumber" class="form-control" @bind-Value="orderModel.OrderNumber" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="customer" class="form-label">Customer *</label>
+                    <select id="customer" class="form-select" @bind="orderModel.CustomerOid" required>
+                        <option value="">-- Select Customer --</option>
+                        @foreach (var customer in customers)
+                        {
+                            <option value="@customer.Oid">@customer.Name (@customer.CustomerId)</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="orderDate" class="form-label">Order Date</label>
+                    <InputDate id="orderDate" class="form-control" @bind-Value="orderModel.OrderDate" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <InputText id="description" class="form-control" @bind-Value="orderModel.Description" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="amount" class="form-label">Amount *</label>
+                    <InputNumber id="amount" class="form-control" @bind-Value="orderModel.Amount" required />
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger">@errorMessage</div>
+                }
+
+                <div class="mb-3">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? OidParam { get; set; }
+
+    private Order? order;
+    private List<Customer> customers = new List<Customer>();
+    private OrderModel orderModel = new OrderModel();
+    private string errorMessage = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        using (var uow = new UnitOfWork())
+        {
+            customers = new XPQuery<Customer>(uow).ToList();
+
+            if (int.TryParse(OidParam, out int oid))
+            {
+                order = uow.GetObjectByKey<Order>(oid);
+                if (order != null)
+                {
+                    orderModel = new OrderModel
+                    {
+                        OrderNumber = order.OrderNumber,
+                        CustomerOid = order.Customer?.Oid.ToString(),
+                        OrderDate = order.OrderDate,
+                        Description = order.Description,
+                        Amount = order.Amount
+                    };
+                }
+            }
+        }
+    }
+
+    private void HandleValidSubmit()
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(orderModel.CustomerOid) && int.TryParse(OidParam, out int oid))
+            {
+                using (var uow = new UnitOfWork())
+                {
+                    var orderToUpdate = uow.GetObjectByKey<Order>(oid);
+                    if (orderToUpdate != null)
+                    {
+                        var customer = uow.GetObjectByKey<Customer>(int.Parse(orderModel.CustomerOid));
+                        if (customer == null)
+                        {
+                            errorMessage = "Selected customer not found.";
+                            return;
+                        }
+
+                        orderToUpdate.OrderNumber = orderModel.OrderNumber;
+                        orderToUpdate.OrderDate = orderModel.OrderDate;
+                        orderToUpdate.Description = orderModel.Description;
+                        orderToUpdate.Amount = orderModel.Amount;
+                        orderToUpdate.Customer = customer;
+
+                        uow.CommitChanges();
+                    }
+                }
+                Navigation.NavigateTo("/orders");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/orders");
+    }
+
+    private class OrderModel
+    {
+        public string? OrderNumber { get; set; }
+        public string? CustomerOid { get; set; }
+        public DateTime OrderDate { get; set; }
+        public string? Description { get; set; }
+        public decimal Amount { get; set; }
+    }
+}

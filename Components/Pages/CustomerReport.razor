@@ -1,0 +1,121 @@
+@page "/customer-report"
+@using CustomerOrders.Models
+@using DevExpress.Xpo
+@using System.Linq
+
+<PageTitle>Customer Order Summary Report</PageTitle>
+
+<h1>Customer Order Summary Report</h1>
+
+<div class="mt-4">
+    @if (reportData == null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <div class="report-container">
+            @foreach (var customerData in reportData)
+            {
+                <div class="customer-group mb-4 border p-3">
+                    <h3>@customerData.Name</h3>
+                    <div class="customer-details mb-3">
+                        <p><strong>Customer ID:</strong> @customerData.CustomerId</p>
+                        <p><strong>Email:</strong> @customerData.Email</p>
+                    </div>
+
+                    @if (customerData.Orders.Count > 0)
+                    {
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Order Date</th>
+                                    <th>Order Number</th>
+                                    <th>Description</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var order in customerData.Orders)
+                                {
+                                    <tr>
+                                        <td>@order.OrderDate.ToString("MM/dd/yyyy")</td>
+                                        <td>@order.OrderNumber</td>
+                                        <td>@order.Description</td>
+                                        <td>@order.Amount.ToString("N2") EGP</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot class="table-secondary">
+                                <tr>
+                                    <td colspan="3" class="text-end"><strong>Total:</strong></td>
+                                    <td><strong>@customerData.TotalAmount.ToString("N2") EGP</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No orders for this customer.</p>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="alert alert-info mt-4">
+            <strong>Note:</strong> The report class is available at <code>Reports/CustomerOrderSummaryReport.cs</code>
+            and can be integrated with DevExpress Report Viewer for PDF export and advanced features.
+        </div>
+    }
+</div>
+
+@code {
+    private List<CustomerReportData> reportData;
+
+    protected override void OnInitialized()
+    {
+        LoadReportData();
+    }
+
+    private void LoadReportData()
+    {
+        using (var uow = new UnitOfWork())
+        {
+            var customers = new XPQuery<Customer>(uow)
+                .OrderBy(c => c.Name)
+                .ToList();
+
+            reportData = customers.Select(c => new CustomerReportData
+            {
+                Name = c.Name,
+                CustomerId = c.CustomerId,
+                Email = c.Email,
+                Orders = c.Orders.OrderBy(o => o.OrderDate).Select(o => new OrderReportData
+                {
+                    OrderDate = o.OrderDate,
+                    OrderNumber = o.OrderNumber,
+                    Description = o.Description,
+                    Amount = o.Amount
+                }).ToList(),
+                TotalAmount = c.Orders.Sum(o => o.Amount)
+            }).ToList();
+        }
+    }
+
+    private class CustomerReportData
+    {
+        public string? Name { get; set; }
+        public string? CustomerId { get; set; }
+        public string? Email { get; set; }
+        public List<OrderReportData> Orders { get; set; } = new();
+        public decimal TotalAmount { get; set; }
+    }
+
+    private class OrderReportData
+    {
+        public DateTime OrderDate { get; set; }
+        public string? OrderNumber { get; set; }
+        public string? Description { get; set; }
+        public decimal Amount { get; set; }
+    }
+}

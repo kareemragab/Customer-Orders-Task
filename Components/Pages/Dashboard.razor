@@ -1,0 +1,113 @@
+@page "/dashboard"
+@using CustomerOrders.Models
+@using DevExpress.Xpo
+@using System.Linq
+
+<PageTitle>Dashboard</PageTitle>
+
+<h1>Customer Orders Dashboard</h1>
+
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Total Customers</h5>
+                <p class="card-text display-4">@TotalCustomers</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Total Orders</h5>
+                <p class="card-text display-4">@TotalOrders</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Total Revenue</h5>
+                <p class="card-text display-4">@TotalRevenue.ToString("N2") EGP</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Top 5 Customers by Total Order Amount</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Customer Name</th>
+                            <th>Total Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (customer, index) in TopCustomers.Select((c, i) => (c, i)))
+                        {
+                            <tr>
+                                <td>@(index + 1)</td>
+                                <td>@customer.Name</td>
+                                <td>@customer.TotalAmount.ToString("N2") EGP</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private int TotalCustomers { get; set; }
+    private int TotalOrders { get; set; }
+    private decimal TotalRevenue { get; set; }
+    private List<CustomerTotal> TopCustomers { get; set; } = new();
+
+    protected override void OnInitialized()
+    {
+        LoadDashboardData();
+    }
+
+    private void LoadDashboardData()
+    {
+        using (var uow = new UnitOfWork())
+        {
+            var customers = new XPQuery<Customer>(uow).ToList();
+            var orders = new XPQuery<Order>(uow).ToList();
+
+            // Eagerly load Orders for each customer to avoid ObjectDisposedException
+            foreach (var customer in customers)
+            {
+                _ = customer.Orders.Count;
+            }
+
+            TotalCustomers = customers.Count;
+            TotalOrders = orders.Count;
+            TotalRevenue = orders.Sum(o => o.Amount);
+
+            TopCustomers = customers
+                .Select(c => new CustomerTotal
+                {
+                    Name = c.Name,
+                    TotalAmount = c.Orders.Sum(o => o.Amount)
+                })
+                .OrderByDescending(c => c.TotalAmount)
+                .Take(5)
+                .ToList();
+        }
+    }
+
+    private class CustomerTotal
+    {
+        public string Name { get; set; }
+        public decimal TotalAmount { get; set; }
+    }
+}

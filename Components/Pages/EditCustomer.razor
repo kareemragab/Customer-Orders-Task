@@ -1,0 +1,122 @@
+@page "/customers/edit/{OidParam}"
+@using CustomerOrders.Models
+@using DevExpress.Xpo
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Customer</PageTitle>
+
+<h1>Edit Customer</h1>
+
+@if (customer == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-6">
+            <EditForm Model="@customerModel" OnValidSubmit="HandleValidSubmit">
+                <div class="mb-3">
+                    <label for="customerId" class="form-label">Customer ID</label>
+                    <InputText id="customerId" class="form-control" @bind-Value="customerModel.CustomerId" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="name" class="form-label">Name *</label>
+                    <InputText id="name" class="form-control" @bind-Value="customerModel.Name" required />
+                </div>
+
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <InputText id="email" class="form-control" @bind-Value="customerModel.Email" type="email" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="phone" class="form-label">Phone Number</label>
+                    <InputText id="phone" class="form-control" @bind-Value="customerModel.PhoneNumber" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger">@errorMessage</div>
+                }
+
+                <div class="mb-3">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? OidParam { get; set; }
+
+    private Customer? customer;
+    private CustomerModel customerModel = new CustomerModel();
+    private string errorMessage = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        if (int.TryParse(OidParam, out int oid))
+        {
+            using (var uow = new UnitOfWork())
+            {
+                customer = uow.GetObjectByKey<Customer>(oid);
+                if (customer != null)
+                {
+                    customerModel = new CustomerModel
+                    {
+                        CustomerId = customer.CustomerId,
+                        Name = customer.Name,
+                        Email = customer.Email,
+                        PhoneNumber = customer.PhoneNumber
+                    };
+                }
+            }
+        }
+    }
+
+    private void HandleValidSubmit()
+    {
+        try
+        {
+            if (int.TryParse(OidParam, out int oid))
+            {
+                using (var uow = new UnitOfWork())
+                {
+                    var customerToUpdate = uow.GetObjectByKey<Customer>(oid);
+                    if (customerToUpdate != null)
+                    {
+                        customerToUpdate.CustomerId = customerModel.CustomerId;
+                        customerToUpdate.Name = customerModel.Name;
+                        customerToUpdate.Email = customerModel.Email;
+                        customerToUpdate.PhoneNumber = customerModel.PhoneNumber;
+
+                        uow.CommitChanges();
+                    }
+                }
+                Navigation.NavigateTo("/customers");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/customers");
+    }
+
+    private class CustomerModel
+    {
+        public string? CustomerId { get; set; }
+        public string? Name { get; set; }
+        public string? Email { get; set; }
+        public string? PhoneNumber { get; set; }
+    }
+}

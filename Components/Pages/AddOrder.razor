@@ -1,0 +1,121 @@
+@page "/orders/add"
+@using CustomerOrders.Models
+@using DevExpress.Xpo
+@inject NavigationManager Navigation
+
+<PageTitle>Add Order</PageTitle>
+
+<h1>Add New Order</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <EditForm Model="@orderModel" OnValidSubmit="HandleValidSubmit">
+            <div class="mb-3">
+                <label for="orderNumber" class="form-label">Order Number</label>
+                <InputText id="orderNumber" class="form-control" @bind-Value="orderModel.OrderNumber" />
+            </div>
+
+            <div class="mb-3">
+                <label for="customer" class="form-label">Customer *</label>
+                <select id="customer" class="form-select" @bind="orderModel.CustomerOid" required>
+                    <option value="">-- Select Customer --</option>
+                    @foreach (var customer in customers)
+                    {
+                        <option value="@customer.Oid">@customer.Name (@customer.CustomerId)</option>
+                    }
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="orderDate" class="form-label">Order Date</label>
+                <InputDate id="orderDate" class="form-control" @bind-Value="orderModel.OrderDate" />
+            </div>
+
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <InputText id="description" class="form-control" @bind-Value="orderModel.Description" />
+            </div>
+
+            <div class="mb-3">
+                <label for="amount" class="form-label">Amount *</label>
+                <InputNumber id="amount" class="form-control" @bind-Value="orderModel.Amount" required />
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">@errorMessage</div>
+            }
+
+            <div class="mb-3">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private List<Customer> customers = new List<Customer>();
+    private OrderModel orderModel = new OrderModel { OrderDate = DateTime.Now };
+    private string errorMessage = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        using (var uow = new UnitOfWork())
+        {
+            customers = new XPQuery<Customer>(uow).ToList();
+        }
+    }
+
+    private void HandleValidSubmit()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(orderModel.CustomerOid))
+            {
+                errorMessage = "Please select a customer.";
+                return;
+            }
+
+            using (var uow = new UnitOfWork())
+            {
+                var customer = uow.GetObjectByKey<Customer>(int.Parse(orderModel.CustomerOid));
+                if (customer == null)
+                {
+                    errorMessage = "Selected customer not found.";
+                    return;
+                }
+
+                var newOrder = new Order(uow)
+                {
+                    OrderNumber = orderModel.OrderNumber,
+                    OrderDate = orderModel.OrderDate,
+                    Description = orderModel.Description,
+                    Amount = orderModel.Amount,
+                    Customer = customer
+                };
+
+                uow.CommitChanges();
+            }
+            Navigation.NavigateTo("/orders");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/orders");
+    }
+
+    private class OrderModel
+    {
+        public string? OrderNumber { get; set; }
+        public string? CustomerOid { get; set; }
+        public DateTime OrderDate { get; set; }
+        public string? Description { get; set; }
+        public decimal Amount { get; set; }
+    }
+}
